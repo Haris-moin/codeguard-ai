@@ -6,8 +6,6 @@ export const applyFixHandler = async (req, res) => {
     var { prNumber, payload } = req.body;
     console.log('prNumber: ', prNumber);
 
-    var fix = [{prNumber, payload}]
-    console.log('fix: ', fix);
     var fixes = getFixSuggestions(prNumber);
     console.log('fixes: ', fixes);
 
