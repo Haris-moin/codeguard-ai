@@ -5,11 +5,10 @@ export const applyFixHandler = async (req, res) => {
   try {
     var { prNumber, payload } = req.body;
     console.log('prNumber: ', prNumber);
-    console.log('  payload: ', payload);
 
     var fix = [{prNumber, payload}]
     console.log('fix: ', fix);
-    const fixes = getFixSuggestions(prNumber);
+    var fixes = getFixSuggestions(prNumber);
     console.log('fixes: ', fixes);
 
     if (!fixes || fixes.length === 0) {
