@@ -3,8 +3,9 @@ import { applyFixPR } from "../services/applyFix.service.js";
 
 export const applyFixHandler = async (req, res) => {
   try {
-    const { prNumber, payload } = req.body;
-
+    var { prNumber, payload } = req.body;
+    var pNumber = parseInt(prNumber, 10);
+    console.log('pNumber: ', pNumber);
     const fixes = getFixSuggestions(prNumber);
     console.log('prNumber: ', prNumber);
     console.log('testing ai reviewer fixes: ', fixes);
