@@ -2,6 +2,7 @@ import { getInstallationOctokit } from "../github/auth.js";
 import {
   generateStructuredReview,
   generateFixSuggestions,
+  generateMultiFileFix,
 } from "./ai.service.js";
 
 import { extractJSON } from "../utils/extractJSON.js";
@@ -26,29 +27,20 @@ export const processPullRequest = async (payload) => {
     });
 
     const allComments = [];
-    const allFixes = [];
 
     // -----------------------------
-    // 🧠 PROCESS EACH FILE
+    // 🧠 1. INLINE AI REVIEW (COMMENTS ONLY)
     // -----------------------------
     for (const file of files) {
       if (!file.patch) continue;
 
-      // -----------------------------
-      // 1. AI REVIEW (COMMENTS)
-      // -----------------------------
-      const aiRaw = await generateStructuredReview(
-        file.patch,
-        file.filename
-      );
+      const aiRaw = await generateStructuredReview(file.patch, file.filename);
 
       const aiComments = extractJSON(aiRaw);
       const addedLines = extractAddedLines(file.patch);
 
       for (const comment of aiComments) {
-        const match = addedLines.find(
-          (l) => l.line === comment.line
-        );
+        const match = addedLines.find((l) => l.line === comment.line);
 
         if (!match) continue;
 
@@ -59,32 +51,20 @@ export const processPullRequest = async (payload) => {
           body: `💡 ${comment.comment}`,
         });
       }
-
-      // -----------------------------
-      // 2. AI FIX SUGGESTIONS (NO APPLY YET)
-      // -----------------------------
-      const fixesRaw = await generateFixSuggestions(
-        file.patch,
-        file.filename
-      );
-
-      const fixes = extractJSON(fixesRaw);
-
-      if (fixes.length > 0) {
-        allFixes.push(...fixes);
-      }
     }
 
     // -----------------------------
-    // 3. SAVE FIXES FOR LATER (IMPORTANT)
+    // 🧠 2. MULTI-FILE FIX GENERATION (ONLY ONE SOURCE OF TRUTH)
     // -----------------------------
-    if (allFixes.length > 0) {
-      saveFixSuggestions(pull_number, allFixes);
-      console.log(`🧠 Saved ${allFixes.length} fix suggestions`);
+    const multiFileFixes = await generateMultiFileFix(files);
+
+    if (multiFileFixes?.length > 0) {
+      await saveFixSuggestions(pull_number, multiFileFixes, payload);
+      console.log("🧠 Multi-file fixes stored");
     }
 
     // -----------------------------
-    // 4. CREATE GITHUB REVIEW
+    // 3. CREATE GITHUB REVIEW
     // -----------------------------
     if (allComments.length > 0) {
       await octokit.pulls.createReview({
@@ -93,7 +73,12 @@ export const processPullRequest = async (payload) => {
         pull_number,
         commit_id: sha,
         event: "COMMENT",
-        body: "🤖 AI Review Completed (with suggestions)",
+        body: `
+🤖 AI Review Completed
+
+✔ Inline comments added  
+⚡ Fix suggestions available (click Apply Fix)
+        `,
         comments: allComments,
       });
     } else {

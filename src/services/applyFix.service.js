@@ -1,5 +1,16 @@
 import { getInstallationOctokit } from "../github/auth.js";
 
+const applyChanges = (content, changes) => {
+  let updated = content;
+
+  for (const change of changes) {
+    const regex = new RegExp(change.search, "g");
+    updated = updated.replace(regex, change.replace);
+  }
+
+  return updated;
+};
+
 /**
  * Apply AI fixes by creating new branch + PR
  */
@@ -30,45 +41,35 @@ export const applyFixPR = async (prNumber, fixes, payload) => {
   // -----------------------------
   // 2. APPLY FIXES FILE BY FILE
   // -----------------------------
-  for (const fix of fixes) {
+  for (const fileFix of fixes) {
     try {
+      const { file, changes } = fileFix;
+
       const { data: fileData } = await octokit.repos.getContent({
         owner,
         repo,
-        path: fix.file,
+        path: file,
         ref: branchName,
       });
 
-      const content = Buffer.from(
-        fileData.content,
-        "base64"
-      ).toString("utf8");
+      const content = Buffer.from(fileData.content, "base64").toString("utf8");
 
-      // -----------------------------
-      // SAFE MVP FIX LOGIC
-      // -----------------------------
-      let updatedContent = content;
+      // 🧠 APPLY MULTIPLE CHANGES
+      const updatedContent = applyChanges(content, changes);
 
-      if (fix.issue?.toLowerCase().includes("var")) {
-        updatedContent = updatedContent.replace(/var /g, "const ");
-      }
-
-      // -----------------------------
-      // PUSH UPDATED FILE
-      // -----------------------------
       await octokit.repos.createOrUpdateFileContents({
         owner,
         repo,
-        path: fix.file,
-        message: `🤖 AI Safe Fix: ${fix.issue}`,
+        path: file,
+        message: "🤖 AI Multi-file Refactor",
         content: Buffer.from(updatedContent).toString("base64"),
         branch: branchName,
         sha: fileData.sha,
       });
 
-      console.log(`🔧 Fixed: ${fix.file}`);
+      console.log(`🔧 Updated: ${file}`);
     } catch (err) {
-      console.warn(`⚠️ Skipping fix for ${fix.file}`, err.message);
+      console.warn(`⚠️ Skipping ${fileFix.file}`, err.message);
     }
   }
 
