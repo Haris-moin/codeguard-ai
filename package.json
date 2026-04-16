@@ -1,22 +1,33 @@
 {
   "name": "codeguard-ai",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "AI-powered GitHub PR review and auto-fix system",
+  "main": "src/server.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "echo \"No tests yet\" && exit 0"
   },
-  "keywords": [],
+  "keywords": [
+    "github",
+    "ai",
+    "pr-review",
+    "automation",
+    "code-review"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "@octokit/auth-app": "^7.2.2",
     "@octokit/rest": "^21.1.1",
     "body-parser": "^2.2.2",
-    "crypto": "^1.0.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.23.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   }
 }
