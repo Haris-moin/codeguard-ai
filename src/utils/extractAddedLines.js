@@ -8,6 +8,7 @@ export const extractAddedLines = (patch) => {
     if (line.startsWith("@@")) {
       const match = line.match(/\+(\d+)/);
       lineNumber = match ? parseInt(match[1], 10) - 1 : 0;
+      console.log('lineNumber: ', lineNumber);
     } else if (line.startsWith("+") && !line.startsWith("+++")) {
       lineNumber++;
       added.push({
