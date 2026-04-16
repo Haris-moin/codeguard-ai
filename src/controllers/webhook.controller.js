@@ -3,6 +3,7 @@ import { processPullRequest } from "../services/pr.service.js";
 export const handleWebhook = async (req, res) => {
   try {
     const event = req.headers["x-github-event"];
+    console.log('tesing events', event);
 
     if (event === "pull_request") {
       await processPullRequest(req.body);

@@ -6,6 +6,7 @@ export const applyFixHandler = async (req, res) => {
     const { prNumber, payload } = req.body;
 
     const fixes = getFixSuggestions(prNumber);
+    console.log('testing ai reviewer fixes: ', fixes);
 
     if (!fixes || fixes.length === 0) {
       return res.status(400).json({
