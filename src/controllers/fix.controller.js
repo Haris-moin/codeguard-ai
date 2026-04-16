@@ -16,6 +16,7 @@ export const applyFixHandler = async (req, res) => {
     }
 
     await applyFixPR(prNumber, fixes, payload);
+    console.log('testing suggested fixes: ', fixes);
 
     return res.json({
       message: "✅ AI Fix PR created successfully",
