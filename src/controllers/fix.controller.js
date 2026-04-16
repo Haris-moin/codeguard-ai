@@ -3,9 +3,14 @@ import { applyFixPR } from "../services/applyFix.service.js";
 
 export const applyFixHandler = async (req, res) => {
   try {
-    const { prNumber, payload } = req.body;
+    var { prNumber, payload } = req.body;
+    console.log('prNumber: ', prNumber);
+    console.log('  payload: ', payload);
 
+    var fix = [{prNumber, payload}]
+    console.log('fix: ', fix);
     const fixes = getFixSuggestions(prNumber);
+    console.log('fixes: ', fixes);
 
     if (!fixes || fixes.length === 0) {
       return res.status(400).json({
