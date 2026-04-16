@@ -2,12 +2,15 @@ import express from "express";
 import dotenv from "dotenv";
 import webhookRoutes from "./routes/webhook.routes.js";
 import fixRoutes from "./routes/fix.routes.js";
+import { connectDB } from "./config/db.js";
+
 
 dotenv.config();
 
 const app = express();
 
 app.use(express.json());
+connectDB();
 
 app.use("/webhook", webhookRoutes);
 app.use("/fix", fixRoutes);

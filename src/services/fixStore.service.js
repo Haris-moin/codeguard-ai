@@ -1,22 +1,45 @@
-const fixStore = new Map();
+import { FixModel } from "../models/fix.model.js";
 
-/**
- * Save AI fix proposals per PR
- */
-export const saveFixSuggestions = (prNumber, fixes) => {
-  fixStore.set(prNumber, fixes);
+export const saveFixSuggestions = async (
+  prNumber,
+  fixes,
+  payload
+) => {
+  const owner = payload.repository.owner.login;
+  const repo = payload.repository.name;
+
+  await FixModel.findOneAndUpdate(
+    { prNumber, owner, repo },
+    {
+      prNumber,
+      owner,
+      repo,
+      fixes,
+    },
+    { upsert: true, new: true }
+  );
 };
 
-/**
- * Get fixes for PR
- */
-export const getFixSuggestions = (prNumber) => {
-  return fixStore.get(prNumber) || [];
+export const getFixSuggestions = async (prNumber, payload) => {
+  const owner = payload.repository.owner.login;
+  const repo = payload.repository.name;
+
+  const data = await FixModel.findOne({
+    prNumber,
+    owner,
+    repo,
+  });
+
+  return data?.fixes || [];
 };
 
-/**
- * Clear after use
- */
-export const clearFixSuggestions = (prNumber) => {
-  fixStore.delete(prNumber);
+export const clearFixSuggestions = async (prNumber, payload) => {
+  const owner = payload.repository.owner.login;
+  const repo = payload.repository.name;
+
+  await FixModel.deleteOne({
+    prNumber,
+    owner,
+    repo,
+  });
 };

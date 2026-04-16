@@ -68,3 +68,43 @@ ${patch}
   const response = await callLLM(prompt);
   return safeParseJSON(response);
 };
+
+export const generateMultiFileFix = async (files) => {
+  const combinedDiff = files
+    .map((f) => `FILE: ${f.filename}\n${f.patch}`)
+    .join("\n\n");
+
+  const prompt = `
+You are a senior software engineer.
+
+Analyze the following multi-file git diff.
+
+Understand relationships between files.
+
+Return ONLY JSON:
+
+[
+  {
+    "file": "file.js",
+    "changes": [
+      {
+        "search": "var user =",
+        "replace": "const user ="
+      }
+    ]
+  }
+]
+
+Rules:
+- Support MULTIPLE files
+- Keep changes SAFE
+- Do NOT rewrite full files
+- Maintain imports consistency
+
+DIFF:
+${combinedDiff}
+`;
+
+  const response = await callLLM(prompt);
+  return safeParseJSON(response);
+};
