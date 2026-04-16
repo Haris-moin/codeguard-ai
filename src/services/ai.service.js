@@ -1,30 +1,46 @@
-const OLLAMA_URL = "http://localhost:11434/api/generate";
+// ================================
+// CONFIG
+// ================================
+const OLLAMA_URL = "http://127.0.0.1:11434/api/generate";
 const MODEL = "llama3:latest";
+const BASE_RULES = `
+You are a STAFF-LEVEL software engineer performing strict pull request review.
 
-export const generateStructuredReview = async (patch, filename) => {
-  const prompt = `
-You are a senior software engineer.
+ABSOLUTE RULES:
+- You MUST ONLY report real issues in the code diff.
+- DO NOT suggest console.log, debugging logs, or temporary logging code.
+- Treat console.log, print, debug statements as BAD PRACTICE unless explicitly required for production error handling.
+- DO NOT suggest "testing code", "debugging code", or temporary fixes.
+- DO NOT approve code that contains var, console.log, or unsafe patterns.
 
-Analyze ONLY added lines (+).
+STRICT DETECTION RULES:
+Flag as issues:
+- usage of var
+- console.log / debug / print statements
+- insecure patterns
+- logic bugs
+- performance issues
 
-Return ONLY JSON:
-[
-  {
-    "file": "${filename}",
-    "line": 12,
-    "comment": "issue explanation"
-  }
-]
+IGNORE:
+- styling opinions
+- formatting unless breaking logic
 
-If no issues, return [].
-
-DIFF:
-${patch}
+OUTPUT RULES:
+- Return ONLY valid JSON
+- No explanations
+- No markdown
+- No text outside JSON
 `;
 
+// ================================
+// SINGLE AI GATEWAY
+// ================================
+const callLLM = async (prompt) => {
   const response = await fetch(OLLAMA_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       model: MODEL,
       prompt,
@@ -33,12 +49,76 @@ ${patch}
   });
 
   const data = await response.json();
-
   return data.response;
 };
 
+// ================================
+// SAFE JSON PARSER (IMPORTANT)
+// ================================
+export const safeParseJSON = (text) => {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    // fallback: try to extract JSON block
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) return [];
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return [];
+    }
+  }
+};
+
+// ================================
+// 1. STRUCTURED PR REVIEW
+// ================================
+export const generateStructuredReview = async (patch, filename) => {
+const prompt = `
+${BASE_RULES}
+
+You are reviewing a GitHub pull request diff.
+
+STRICT RULE:
+You MUST only comment on lines that start with "+" (added lines).
+
+Return ONLY JSON array.
+
+Each comment MUST include:
+
+{
+  "file": "${filename}",
+  "lineText": "exact added line text",
+  "comment": "issue explanation"
+}
+
+RULES:
+- Do NOT guess line numbers
+- Use ONLY the exact added line content
+- If multiple issues exist, create multiple entries
+- If no issues, return []
+
+FOCUS ON:
+- var usage
+- console.log usage
+- unsafe logic
+- missing null checks
+- security issues
+
+DIFF:
+${patch}
+`;
+
+  const response = await callLLM(prompt);
+  return safeParseJSON(response);
+};
+
+// ================================
+// 2. FIX SUGGESTIONS (SINGLE FILE)
+// ================================
 export const generateFixSuggestions = async (patch, filename) => {
   const prompt = `
+  ${BASE_RULES}
 You are a senior software engineer.
 
 Analyze ONLY added lines (+) and suggest SAFE fixes.
@@ -69,17 +149,19 @@ ${patch}
   return safeParseJSON(response);
 };
 
+// ================================
+// 3. MULTI-FILE REFACTOR ENGINE
+// ================================
 export const generateMultiFileFix = async (files) => {
   const combinedDiff = files
     .map((f) => `FILE: ${f.filename}\n${f.patch}`)
     .join("\n\n");
 
   const prompt = `
+  ${BASE_RULES}
 You are a senior software engineer.
 
-Analyze the following multi-file git diff.
-
-Understand relationships between files.
+Analyze multi-file git diff.
 
 Return ONLY JSON:
 
@@ -96,10 +178,10 @@ Return ONLY JSON:
 ]
 
 Rules:
-- Support MULTIPLE files
-- Keep changes SAFE
-- Do NOT rewrite full files
-- Maintain imports consistency
+- Multi-file awareness
+- SAFE changes only
+- No full rewrites
+- Keep consistency between files
 
 DIFF:
 ${combinedDiff}
