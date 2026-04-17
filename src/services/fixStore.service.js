@@ -1,17 +1,15 @@
 import { FixModel } from "../models/fix.model.js";
 
-export const saveFixSuggestions = async (
-  prNumber,
+export const saveFixSuggestions = async ({
+  pull_number,
+  owner,
+  repo,
   fixes,
-  payload
-) => {
-  const owner = payload.repository.owner.login;
-  const repo = payload.repository.name;
-
+}) => {
   await FixModel.findOneAndUpdate(
-    { prNumber, owner, repo },
+    { prNumber: pull_number, owner, repo },
     {
-      prNumber,
+      prNumber: pull_number,
       owner,
       repo,
       fixes,
