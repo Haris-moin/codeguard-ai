@@ -24,21 +24,18 @@ const uniqueByKey = (arr, keyFn) => {
   });
 };
 
-const getLineNumberFromPatch = (patch, lineText) => {
+const getPositionFromPatch = (patch, targetLineText) => {
   const lines = patch.split("\n");
 
-  let lineNumber = 0;
+  let position = 0;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // count only actual diff lines (+ additions context)
-    if (!line.startsWith("-")) {
-      lineNumber++;
+  for (const line of lines) {
+    if (!line.startsWith("@@")) {
+      position++;
     }
 
-    if (line.includes(lineText)) {
-      return lineNumber;
+    if (line.startsWith("+") && line.includes(targetLineText)) {
+      return position;
     }
   }
 
@@ -87,14 +84,13 @@ export const processPullRequest = async (payload) => {
     );
 
     for (const comment of cleanedComments) {
-      const lineNumber = getLineNumberFromPatch(file.patch, comment.lineText);
+      const position = getPositionFromPatch(file.patch, comment.lineText);
 
-      if (!lineNumber) continue;
+      if (!position) continue;
 
       allComments.push({
         path: file.filename,
-        line: lineNumber,
-        side: "RIGHT",
+        position,
         body: `💡 ${comment.comment}`,
       });
     }
