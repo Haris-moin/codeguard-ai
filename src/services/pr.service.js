@@ -118,8 +118,9 @@ export const processPullRequest = async (payload) => {
   // 2. MULTI-FILE AI ANALYSIS
   // ================================
   let multiFileRun = false;
+  let multiFileFixes = [];
   if (!multiFileRun) {
-    const multiFileFixes = await generateMultiFileFix(files);
+    multiFileFixes = await generateMultiFileFix(files);
     multiFileRun = true;
 
     if (multiFileFixes?.length > 0) {
