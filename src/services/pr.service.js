@@ -7,10 +7,6 @@ import {
 
 import { saveFixSuggestions } from "./fixStore.service.js";
 
-// ================================
-// HELPERS
-// ================================
-
 const uniqueByKey = (arr, keyFn) => {
   const seen = new Set();
 
@@ -24,7 +20,34 @@ const uniqueByKey = (arr, keyFn) => {
   });
 };
 
-const getLineNumberFromPatch = (patch, lineText) => {
+const normalizeFixes = (fixes, filename = null) => {
+  const normalized = [];
+
+  for (const fix of fixes) {
+    // ✅ Case 1: Already in correct format (multi-file)
+    if (fix.file && fix.changes) {
+      normalized.push(fix);
+      continue;
+    }
+
+    // ⚠️ Case 2: Single-file fix → convert it
+    if (fix.issue && fix.fix && filename) {
+      normalized.push({
+        file: filename,
+        changes: [
+          {
+            search: fix.issue, // TEMP (will fix in Step 2)
+            replace: fix.fix,
+          },
+        ],
+      });
+    }
+  }
+
+  return normalized;
+};
+
+const getPositionFromPatch = (patch, targetLineText) => {
   const lines = patch.split("\n");
 
   let lineNumber = 0;
@@ -32,12 +55,11 @@ const getLineNumberFromPatch = (patch, lineText) => {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // count only actual diff lines (+ additions context)
     if (!line.startsWith("-")) {
       lineNumber++;
     }
 
-    if (line.includes(lineText)) {
+    if (line.includes(targetLineText)) {
       return lineNumber;
     }
   }
@@ -45,10 +67,7 @@ const getLineNumberFromPatch = (patch, lineText) => {
   return null;
 };
 
-// ================================
 // MAIN PR PROCESSOR
-// ================================
-
 export const processPullRequest = async (payload) => {
   const installationId = payload.installation.id;
   const octokit = await getInstallationOctokit(installationId);
@@ -67,15 +86,10 @@ export const processPullRequest = async (payload) => {
   const allComments = [];
   const allFixes = [];
 
-  // ================================
-  // 1. FILE BY FILE ANALYSIS
-  // ================================
+  // FILE BY FILE ANALYSIS
   for (const file of files) {
     if (!file.patch) continue;
 
-    // ------------------------
-    // AI STRUCTURED REVIEW
-    // ------------------------
     const aiComments = await generateStructuredReview(
       file.patch,
       file.filename,
@@ -87,7 +101,7 @@ export const processPullRequest = async (payload) => {
     );
 
     for (const comment of cleanedComments) {
-      const lineNumber = getLineNumberFromPatch(file.patch, comment.lineText);
+      const lineNumber = getPositionFromPatch(file.patch, comment.lineText);
 
       if (!lineNumber) continue;
 
@@ -99,9 +113,7 @@ export const processPullRequest = async (payload) => {
       });
     }
 
-    // ------------------------
     // SINGLE FILE FIXES
-    // ------------------------
     const fixes = await generateFixSuggestions(file.patch, file.filename);
 
     const cleanedFixes = uniqueByKey(
@@ -109,14 +121,14 @@ export const processPullRequest = async (payload) => {
       (f) => `${file.filename}-${f.issue}`,
     );
 
-    if (cleanedFixes.length > 0) {
-      allFixes.push(...cleanedFixes);
+    const normalizedSingleFixes = normalizeFixes(cleanedFixes, file.filename);
+
+    if (normalizedSingleFixes.length > 0) {
+      allFixes.push(...normalizedSingleFixes);
     }
   }
 
-  // ================================
-  // 2. MULTI-FILE AI ANALYSIS
-  // ================================
+  // MULTI-FILE AI ANALYSIS
   let multiFileRun = false;
   if (!multiFileRun) {
     const multiFileFixes = await generateMultiFileFix(files);
@@ -128,32 +140,27 @@ export const processPullRequest = async (payload) => {
         (f) => `${f.file}-${JSON.stringify(f.changes)}`,
       );
 
-      allFixes.push(...cleanedMulti);
+      const normalizedMultiFixes = normalizeFixes(cleanedMulti);
+
+      if (normalizedMultiFixes.length > 0) {
+        allFixes.push(...normalizedMultiFixes);
+      }
     }
-    await saveFixSuggestions({
-      pull_number,
-      owner,
-      repo,
-      fixes: multiFileFixes,
-    });
   }
 
-  // ================================
-  // 3. SAVE ALL FIXES
-  // ================================
+  // SAVE ALL FIXES
   if (allFixes.length > 0) {
     await saveFixSuggestions({
       pull_number,
       owner,
       repo,
-      fixes: multiFileFixes,
+      fixes: allFixes,
     });
   }
 
-  // ================================
-  // 4. GITHUB REVIEW SUBMISSION
-  // ================================
+  // GITHUB REVIEW SUBMISSION
   if (allComments.length > 0) {
+    console.log("FINAL COMMENTS:", JSON.stringify(allComments, null, 2));
     await octokit.pulls.createReview({
       owner,
       repo,
